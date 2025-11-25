@@ -1,0 +1,105 @@
+#!/bin/bash
+
+#set -euo pipefail
+
+# ---------------------------
+# SETTINGS
+# ---------------------------
+#TARGET_PROFILE="$1"             # e.g. my_prod / my_non_prod
+#SSO_PROFILE="jem_non_prod"    # Profile in ~/.aws/config used for SSO login
+#SSO_PROFILE="jem_non_prod"    # Profile in ~/.aws/config used for SSO login
+#ACCOUNT_ID="730335178677"
+#ACCOUNT_ID="730335178677"
+#ROLE_NAME="aws-role-gsmd-ro"
+#ROLE_NAME="aws-role-gsmd-ro"
+
+
+TARGET_PROFILE="$1"
+SSO_PROFILE="$1"  # Your SSO login profile in ~/.aws/config
+
+if [ -z "$TARGET_PROFILE" ]; then
+  echo "Usage: $0 <target-profile>"
+  exit 1
+fi
+
+echo "🔐 Updating credentials for [$TARGET_PROFILE] using SSO profile [$SSO_PROFILE]"
+echo ""
+
+# ----------------------------
+# 1. Login
+# ----------------------------
+aws sso login --profile "$SSO_PROFILE"
+
+# ----------------------------
+# 2. Extract SSO Access Token
+# ----------------------------
+CACHE_DIR="$HOME/.aws/sso/cache"
+TOKEN_FILE=$(grep -l '"startUrl"' "$CACHE_DIR"/*.json | head -n 1)
+ACCESS_TOKEN=$(jq -r '.accessToken' "$TOKEN_FILE")
+
+if [ "$ACCESS_TOKEN" == "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+  echo "❌ No SSO access token found."
+  exit 1
+fi
+
+# ----------------------------
+# 3. Find matching AWS account by name == TARGET_PROFILE
+# ----------------------------
+ACCOUNT_ID=$(
+  aws sso list-accounts \
+    --access-token "$ACCESS_TOKEN" \
+    --query "accountList[?accountName=='$TARGET_PROFILE'].accountId" \
+    --output text
+)
+
+if [ -z "$ACCOUNT_ID" ]; then
+  echo "❌ Could not find an SSO account whose name matches: $TARGET_PROFILE"
+  echo "ℹ️  Run: aws sso list-accounts --access-token <token>"
+  exit 1
+fi
+
+echo "➡️  Using account_id: $ACCOUNT_ID"
+
+# ----------------------------
+# 4. Get role for that account (if multiple, pick the first)
+# ----------------------------
+ROLE_NAME=$(
+  aws sso list-account-roles \
+    --access-token "$ACCESS_TOKEN" \
+    --account-id "$ACCOUNT_ID" \
+    --query "roleList[0].roleName" \
+    --output text
+)
+
+if [ -z "$ROLE_NAME" ]; then
+  echo "❌ No SSO roles found for account: $ACCOUNT_ID"
+  exit 1
+fi
+
+echo "➡️  Using role: $ROLE_NAME"
+
+# ----------------------------
+# 5. Fetch credentials
+# ----------------------------
+CREDS_JSON=$(aws sso get-role-credentials \
+    --access-token "$ACCESS_TOKEN" \
+    --account-id "$ACCOUNT_ID" \
+    --role-name "$ROLE_NAME")
+
+AWS_ACCESS_KEY_ID=$(echo "$CREDS_JSON" | jq -r '.roleCredentials.accessKeyId')
+AWS_SECRET_ACCESS_KEY=$(echo "$CREDS_JSON" | jq -r '.roleCredentials.secretAccessKey')
+AWS_SESSION_TOKEN=$(echo "$CREDS_JSON" | jq -r '.roleCredentials.sessionToken')
+
+echo $AWS_ACCESS_KEY_ID
+echo $AWS_SECRET_ACCESS_KEY
+echo $AWS_SESSION_TOKEN
+# ----------------------------
+# 6. Update ~/.aws/credentials
+# ----------------------------
+#aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile "$TARGET_PROFILE"
+#aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile "$TARGET_PROFILE"
+#aws configure set aws_session_token "$AWS_SESSION_TOKEN" --profile "$TARGET_PROFILE"
+
+echo ""
+echo "✅ Successfully refreshed credentials for [$TARGET_PROFILE]"
+

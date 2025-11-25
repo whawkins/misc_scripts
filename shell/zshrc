@@ -1,0 +1,202 @@
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/Users/WillWork/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/Users/WillWork/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "/Users/WillWork/miniconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/Users/WillWork/miniconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+
+# Alias for shorter command
+
+alias ll='ls -ltr'
+alias la='ls -A'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias g='git'
+
+
+# Directory navigation
+alias ll='ls -ltr'           # List files by time (newest last)
+alias la='ls -la'            # List all files including hidden
+alias ..='cd ..'             # Go up one directory
+alias ...='cd ../..'         # Go up two directories
+alias ....='cd ../../..'     # Go up three directories
+
+# Quick directory jumping
+alias h='cd ~'               # Go to home directory
+alias d='cd ~/Desktop'       # Go to Desktop
+alias dl='cd ~/Downloads'    # Go to Downloads
+
+
+# Create directory and cd into it
+mkcd() { mkdir -p "$1" && cd "$1"; }
+
+# Find files by name
+w_ff() { find . -name "*$1*" -type f; }
+#w_ff() { find . -name "*$1*" -type f 2>/dev/null; }
+
+# Find directories by name
+w_fd() { find . -name "*$1*" -type d; }
+#w_fd() { find . -name "*$1*" -type d 2>/dev/null; }
+
+# Extract various archive formats
+extract() {
+    if [ -f "$1" ]; then
+        case "$1" in
+            *.tar.bz2)   tar xjf "$1"     ;;
+            *.tar.gz)    tar xzf "$1"     ;;
+            *.bz2)       bunzip2 "$1"     ;;
+            *.rar)       unrar x "$1"     ;;
+            *.gz)        gunzip "$1"      ;;
+            *.tar)       tar xf "$1"      ;;
+            *.tbz2)      tar xjf "$1"     ;;
+            *.tgz)       tar xzf "$1"     ;;
+            *.zip)       unzip "$1"       ;;
+            *.Z)         uncompress "$1"  ;;
+            *.7z)        7z x "$1"        ;;
+            *)           echo "'$1' cannot be extracted" ;;
+        esac
+    else
+        echo "'$1' is not a valid file"
+    fi
+}
+
+# Convert Unix epoch to local time
+epoch_to_date() {
+    if [ -z "$1" ]; then
+        echo "Usage: epoch_to_date <timestamp>"
+        echo "Example: epoch_to_date 1643723400"
+        return 1
+    fi
+    date -r "$1"
+}
+
+alias w_e2d='epoch_to_date'
+
+# Get current Unix timestamp
+alias timestamp='date +%s'
+
+# Show current time in various formats
+alias now='date "+%Y-%m-%d %H:%M:%S"'
+alias utc='date -u "+%Y-%m-%d %H:%M:%S UTC"'
+
+
+# GIT shortcuts
+alias g='git'
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline'
+alias gd='git diff'
+alias gb='git branch'
+alias gco='git checkout'
+
+# Network and System info
+# ========================
+
+# Get external IP address
+alias myip='curl -s ifconfig.me'
+# Show local IP address
+alias localip="ipconfig getifaddr en0"
+# Quick HTTP server (Python 3)
+alias serve='python3 -m http.server 8000'
+# Show disk usage in human readable format
+alias du1='du -h -d 1'
+# Show top 10 largest files in current directory
+alias big='du -sh * | sort -hr | head -10'
+
+# Process Management
+# ========================
+
+# Kill process by name
+killp() {
+    if [ -z "$1" ]; then
+        echo "Usage: killp <process_name>"
+        return 1
+    fi
+    pkill -f "$1"
+}
+
+# Show processes using a specific port
+port() {
+    if [ -z "$1" ]; then
+        echo "Usage: port <port_number>"
+        return 1
+    fi
+    lsof -i ":$1"
+}
+
+# Text Processing
+# =================
+
+# put each line in single quotes, then comma
+w_quote_lines() {
+    sed "s/.*/'&',/" "$1"
+}
+
+# Count lines in file
+w_lines() { wc -l "$1"; }
+
+# Remove duplicate lines while preserving order
+dedup() { awk '!seen[$0]++' "$1"; }
+# Convert text to lowercase
+w_lower() { echo "$1" | tr '[:upper:]' '[:lower:]'; }
+# Convert text to uppercase
+w_upper() { echo "$1" | tr '[:lower:]' '[:upper:]'; }
+
+# History & Search
+# =================
+
+# Better history search
+alias h='history | grep'
+# Clear screen and history
+alias cls='clear && history -c'
+# Reload zsh configuration
+alias w_reload='source ~/.zshrc'
+alias w_vi_zshrc='vi ~/.zshrc'
+
+# ==== AWS convenience
+alias aws_prod='export AWS_PROFILE=jem_prod; kubectx jem_prod'
+alias aws_non_prod='export AWS_PROFILE=jem_non_prod; kubectx jem_non_prod'
+alias aws_coe01='export AWS_PROFILE=coe01; kubectx coe01'
+alias aws_sts_get_caller_identity='aws sts get-caller-identity'
+alias k_get_pods_all='kubectl get pods --all-namespaces'
+
+# Tail logs from the cts-runner pod (auto-detects the correct name)
+k_cts_runner_tail_log() {
+  NAMESPACE=${1:-cts}   # default namespace = cts, but you can pass another if needed
+  POD=$(kubectl get pods -n "$NAMESPACE" --no-headers -o custom-columns=":metadata.name" \
+        | grep '^cts-runner-' | head -n 1)
+
+  if [ -z "$POD" ]; then
+    echo "No cts-runner pod found in namespace '$NAMESPACE'"
+    return 1
+  fi
+
+  echo "Tailing logs for pod: $POD (namespace: $NAMESPACE)"
+  kubectl logs "$POD" -n "$NAMESPACE" --timestamps -f
+}
+
+k_cts_runner_tail_log_filtered() {
+  NAMESPACE=${1:-cts}   # default namespace = cts, but you can pass another if needed
+  POD=$(kubectl get pods -n "$NAMESPACE" --no-headers -o custom-columns=":metadata.name" \
+        | grep '^cts-runner-' | head -n 1)
+
+  if [ -z "$POD" ]; then
+    echo "No cts-runner pod found in namespace '$NAMESPACE'"
+    return 1
+  fi
+
+  echo "Tailing logs for pod: $POD (namespace: $NAMESPACE)"
+  kubectl logs "$POD" -n "$NAMESPACE" --timestamps -f | grep -iE "Runner|> |error"
+}
+
